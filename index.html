@@ -44,7 +44,6 @@
       overscroll-behavior: none;
     }
 
-    /* dynamic viewport (mobile friendly) */
     #app{
       height:100vh;
       height:100dvh;
@@ -103,7 +102,6 @@
       flex: 0 0 auto;
     }
 
-    /* Desktop toolbar */
     .actions{
       display:flex;
       align-items:center;
@@ -123,8 +121,8 @@
       font-weight:700;
       font-size:13px;
       line-height:1;
-      min-height:40px; /* touch-friendly */
-      min-width:40px;  /* touch-friendly */
+      min-height:40px;
+      min-width:40px;
     }
     button.primary{background:rgba(22,163,74,.14); border-color:rgba(22,163,74,.28);}
     button:disabled{opacity:.55; cursor:not-allowed;}
@@ -183,7 +181,6 @@
     }
     .bgctl .preset:hover, .gridctl .preset:hover{background:rgba(255,255,255,.95);}
 
-    /* Viewer */
     #viewer{position:relative; height:100%;}
     canvas{display:block; width:100%; height:100%; touch-action:none;}
 
@@ -205,7 +202,7 @@
     .help{
       position:absolute;
       left:14px; bottom:14px;
-      max-width:480px;
+      max-width:520px;
       padding:12px 12px;
       border:1px solid var(--border);
       background: rgba(255,255,255,.82);
@@ -227,11 +224,9 @@
       font-weight:800;
     }
 
-    /* Mobile-only buttons */
     .menuBtn{display:none;}
     .miniBtn{display:none;}
 
-    /* Mobile collapsible toolbar */
     #toolbarPanel{
       display:none;
       width:100%;
@@ -275,7 +270,6 @@
       .menuBtn{display:inline-flex;}
       .miniBtn{display:inline-flex;}
 
-      /* Hide desktop actions; use collapsible panel */
       .actions{display:none;}
       #toolbarPanel{display:block;}
       #toolbarPanel[hidden]{display:none;}
@@ -347,6 +341,21 @@
           <button class="preset" id="gridMode" type="button">Finite</button>
         </span>
 
+        <span class="gridctl" title="Quality options" style="gap:10px;">
+          Quality
+          <select id="qualitySelect" style="height:32px;border-radius:999px;border:1px solid var(--border);padding:0 10px;background:rgba(255,255,255,.75);font-weight:700;">
+            <option value="low">Low</option>
+            <option value="medium">Medium</option>
+            <option value="high" selected>High</option>
+            <option value="ultra">Ultra</option>
+          </select>
+
+          <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;font-weight:800;color:var(--text);">
+            <input id="smoothShading" type="checkbox" style="width:16px;height:16px;" />
+            Smooth
+          </label>
+        </span>
+
         <label>
           <input id="fileInput" type="file" accept=".ifc" />
           <button id="btnLoad" class="primary" type="button">Load IFC</button>
@@ -383,6 +392,22 @@
           </div>
 
           <div class="toolbarRow">
+            <span class="gridctl" style="width:100%; justify-content:space-between;" title="Quality options">
+              <span style="font-weight:800;color:var(--text);">Quality</span>
+              <select id="qualitySelectMobile" style="height:36px;border-radius:999px;border:1px solid var(--border);padding:0 10px;background:rgba(255,255,255,.75);font-weight:700;flex:1 1 auto;max-width:180px;">
+                <option value="low">Low</option>
+                <option value="medium">Medium</option>
+                <option value="high" selected>High</option>
+                <option value="ultra">Ultra</option>
+              </select>
+              <label style="display:inline-flex;align-items:center;gap:8px;cursor:pointer;font-weight:800;color:var(--text);">
+                <input id="smoothShadingMobile" type="checkbox" style="width:18px;height:18px;" />
+                Smooth
+              </label>
+            </span>
+          </div>
+
+          <div class="toolbarRow">
             <label style="flex:1 1 auto;">
               <input id="fileInputMobile" type="file" accept=".ifc" />
               <button id="btnLoadMobile" class="primary" type="button" style="width:100%;">Load IFC</button>
@@ -405,7 +430,8 @@
             <b>Controls</b><br/>
             • Drag = rotate • Scroll/pinch = zoom • Right-drag (or 2-finger) = pan<br/>
             <span id="defaultInfo"></span><br/>
-            <span><b>Grid</b>: On/Off and Finite/Infinite.</span>
+            <span><b>Grid</b>: On/Off and Finite/Infinite.</span><br/>
+            <span><b>Quality</b>: High/Ultra may reduce FPS on weak GPUs.</span>
           </div>
           <button id="helpClose" class="helpClose" type="button" title="Hide help">×</button>
         </div>
@@ -417,6 +443,12 @@
     import * as THREE from "three";
     import { OrbitControls } from "three/addons/controls/OrbitControls.js";
     import { IFCLoader } from "https://cdn.jsdelivr.net/npm/web-ifc-three@0.0.126/IFCLoader.js";
+
+    // Postprocessing (anti-aliasing)
+    import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
+    import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
+    import { ShaderPass } from "three/addons/postprocessing/ShaderPass.js";
+    import { FXAAShader } from "three/addons/shaders/FXAAShader.js";
 
     const DEFAULT_IFC_URL = "./Projeto_Objeto3D_Chat.ifc";
     const WEB_IFC_WASM_PATH = "https://cdn.jsdelivr.net/npm/web-ifc@0.0.72/";
@@ -463,6 +495,13 @@
       bgDarkMobile: document.getElementById("bgDarkMobile"),
       gridToggleMobile: document.getElementById("gridToggleMobile"),
       gridModeMobile: document.getElementById("gridModeMobile"),
+
+      // Quality
+      qualitySelect: document.getElementById("qualitySelect"),
+      smoothShading: document.getElementById("smoothShading"),
+      qualitySelectMobile: document.getElementById("qualitySelectMobile"),
+      smoothShadingMobile: document.getElementById("smoothShadingMobile"),
+
       fileInputMobile: document.getElementById("fileInputMobile"),
       btnLoadMobile: document.getElementById("btnLoadMobile"),
       btnFitMobile: document.getElementById("btnFitMobile"),
@@ -484,6 +523,19 @@
     let infiniteGrid = null;
     let gridVisible = true;
     let gridMode = "finite";
+
+    // Postprocessing / Quality
+    let composer = null;
+    let renderPass = null;
+    let fxaaPass = null;
+
+    let qualityLevel = "high";
+    let smoothEnabled = false;
+
+    const QUALITY_KEY = "heliroma_quality";
+    const SMOOTH_KEY = "heliroma_smooth";
+
+    let currentPixelRatio = 1;
 
     function showError(message, err){
       console.error(message, err);
@@ -522,6 +574,66 @@
       el.helpCard.style.display = v ? "block" : "none";
       if (el.btnHelp) el.btnHelp.textContent = v ? "Hide" : "Help";
       try{ localStorage.setItem(HELP_VISIBLE_KEY, v ? "1" : "0"); }catch(_){}
+    }
+
+    function isMobileLike(){
+      return matchMedia("(max-width: 720px)").matches;
+    }
+
+    function qualityToScale(level){
+      // Conservative caps on mobile to avoid GPU overload
+      const mobile = isMobileLike();
+      switch(level){
+        case "low": return 0.75;
+        case "medium": return 1.0;
+        case "high": return mobile ? 1.15 : 1.5;
+        case "ultra": return mobile ? 1.25 : 2.0;
+        default: return mobile ? 1.15 : 1.5;
+      }
+    }
+
+    function applyQuality(level){
+      qualityLevel = (level === "low" || level === "medium" || level === "high" || level === "ultra") ? level : "high";
+      const scale = qualityToScale(qualityLevel);
+
+      // Base DPR with cap (critical on mobile)
+      const base = Math.min(window.devicePixelRatio || 1, isMobileLike() ? 1.5 : 2.0);
+      currentPixelRatio = base * scale;
+
+      if (renderer) renderer.setPixelRatio(currentPixelRatio);
+      if (composer && composer.setPixelRatio) composer.setPixelRatio(currentPixelRatio);
+
+      // FXAA enabled except in low mode
+      if (fxaaPass) fxaaPass.enabled = (qualityLevel !== "low");
+
+      try{ localStorage.setItem(QUALITY_KEY, qualityLevel); }catch(_){}
+      resize();
+    }
+
+    function applySmoothShading(enabled){
+      smoothEnabled = !!enabled;
+      try{ localStorage.setItem(SMOOTH_KEY, smoothEnabled ? "1" : "0"); }catch(_){}
+
+      if (!currentModel) return;
+
+      currentModel.traverse((obj) => {
+        if (!obj.isMesh) return;
+
+        const g = obj.geometry;
+        if (smoothEnabled && g && g.computeVertexNormals){
+          // Improves lighting smoothness without changing geometry
+          g.computeVertexNormals();
+          g.normalsNeedUpdate = true;
+        }
+
+        const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+        for (const m of mats){
+          if (!m) continue;
+          // Avoid faceted look when possible
+          if ("flatShading" in m) m.flatShading = smoothEnabled ? false : m.flatShading;
+          m.needsUpdate = true;
+        }
+      });
     }
 
     function applyFallbackGreenToUnstyledMeshes(model){
@@ -670,11 +782,21 @@
 
       renderer = new THREE.WebGLRenderer({ canvas: el.canvas, antialias: true, alpha: false });
       renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+      currentPixelRatio = renderer.getPixelRatio();
 
       controls = new OrbitControls(camera, renderer.domElement);
       controls.enableDamping = true;
       controls.dampingFactor = 0.06;
       controls.target.set(0, 1, 0);
+
+      // Postprocessing (FXAA anti-aliasing) + quality control
+      composer = new EffectComposer(renderer);
+      renderPass = new RenderPass(scene, camera);
+      composer.addPass(renderPass);
+
+      fxaaPass = new ShaderPass(FXAAShader);
+      fxaaPass.enabled = true; // controlled by applyQuality
+      composer.addPass(fxaaPass);
 
       scene.add(new THREE.HemisphereLight(0xffffff, 0x223344, 0.9));
       const dir = new THREE.DirectionalLight(0xffffff, 0.9);
@@ -738,6 +860,47 @@
 
       applyViewerBackground(initialBg);
 
+      // Restore and wire Quality / Smooth Shading (persisted)
+      let storedQ = null, storedS = null;
+      try{
+        storedQ = localStorage.getItem(QUALITY_KEY);
+        storedS = localStorage.getItem(SMOOTH_KEY);
+      }catch(_){}
+
+      qualityLevel = (storedQ === "low" || storedQ === "medium" || storedQ === "high" || storedQ === "ultra") ? storedQ : "high";
+      smoothEnabled = (storedS === "1");
+
+      if (el.qualitySelect) el.qualitySelect.value = qualityLevel;
+      if (el.qualitySelectMobile) el.qualitySelectMobile.value = qualityLevel;
+      if (el.smoothShading) el.smoothShading.checked = smoothEnabled;
+      if (el.smoothShadingMobile) el.smoothShadingMobile.checked = smoothEnabled;
+
+      if (el.qualitySelect) el.qualitySelect.addEventListener("change", (e) => {
+        const v = e.target.value;
+        applyQuality(v);
+        if (el.qualitySelectMobile) el.qualitySelectMobile.value = v;
+      });
+      if (el.smoothShading) el.smoothShading.addEventListener("change", (e) => {
+        const v = !!e.target.checked;
+        applySmoothShading(v);
+        if (el.smoothShadingMobile) el.smoothShadingMobile.checked = v;
+      });
+
+      if (el.qualitySelectMobile) el.qualitySelectMobile.addEventListener("change", (e) => {
+        const v = e.target.value;
+        applyQuality(v);
+        if (el.qualitySelect) el.qualitySelect.value = v;
+      });
+      if (el.smoothShadingMobile) el.smoothShadingMobile.addEventListener("change", (e) => {
+        const v = !!e.target.checked;
+        applySmoothShading(v);
+        if (el.smoothShading) el.smoothShading.checked = v;
+      });
+
+      // Apply immediately
+      applyQuality(qualityLevel);
+      applySmoothShading(smoothEnabled);
+
       window.addEventListener("resize", resize, { passive:true });
       window.addEventListener("orientationchange", () => setTimeout(resize, 250), { passive:true });
       resize();
@@ -752,9 +915,23 @@
     function resize(){
       const w = el.viewer.clientWidth;
       const h = el.viewer.clientHeight;
+
       camera.aspect = w / h;
       camera.updateProjectionMatrix();
+
       renderer.setSize(w, h, false);
+
+      if (composer){
+        composer.setSize(w, h);
+
+        // FXAA resolution accounts for pixel ratio
+        if (fxaaPass?.material?.uniforms?.resolution){
+          fxaaPass.material.uniforms.resolution.value.set(
+            1 / (w * currentPixelRatio),
+            1 / (h * currentPixelRatio)
+          );
+        }
+      }
     }
 
     function tick(){
@@ -763,7 +940,12 @@
         infiniteGrid.position.z = controls.target.z;
       }
       controls.update();
-      renderer.render(scene, camera);
+
+      if (composer && fxaaPass && fxaaPass.enabled){
+        composer.render();
+      } else {
+        renderer.render(scene, camera);
+      }
     }
 
     function resetCamera(){
@@ -823,6 +1005,7 @@
             clearModel();
             currentModel = model;
             applyFallbackGreenToUnstyledMeshes(model);
+            applySmoothShading(smoothEnabled);
             scene.add(model);
             fitToObject(model);
             setStatus("Loaded");
@@ -849,6 +1032,7 @@
             clearModel();
             currentModel = model;
             applyFallbackGreenToUnstyledMeshes(model);
+            applySmoothShading(smoothEnabled);
             scene.add(model);
             fitToObject(model);
             setStatus("Loaded");
