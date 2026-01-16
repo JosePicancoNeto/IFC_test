@@ -2,7 +2,7 @@
 <html lang="en" translate="no" class="notranslate">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
   <meta name="google" content="notranslate" />
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22%3E%3Ctext y=%22.9em%22 font-size=%2290%22%3E%F0%9F%A7%8A%3C/text%3E%3C/svg%3E">
   <title>Heliroma — IFC 3D Viewer</title>
@@ -29,7 +29,11 @@
       --accent:#16a34a;
       --border:rgba(15,23,42,.12);
       --radius:14px;
+      --shadow: 0 12px 30px rgba(0,0,0,.10);
+      --header-bg: linear-gradient(180deg, rgba(15,23,42,.05), rgba(15,23,42,0));
     }
+
+    *{box-sizing:border-box;}
 
     html,body{
       height:100%;
@@ -37,58 +41,157 @@
       background:var(--page-bg);
       color:var(--text);
       font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial;
+      overscroll-behavior: none;
     }
 
-    #app{height:100%; display:grid; grid-template-rows:auto 1fr;}
+    /* dynamic viewport (mobile friendly) */
+    #app{
+      height:100vh;
+      height:100dvh;
+      display:grid;
+      grid-template-rows:auto 1fr;
+    }
 
     header{
-      display:flex; align-items:center; justify-content:space-between;
-      gap:12px; padding:10px 12px; border-bottom:1px solid var(--border);
-      background: linear-gradient(180deg, rgba(15,23,42,.05), rgba(15,23,42,0));
+      position:sticky;
+      top:0;
+      z-index:50;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+      padding:10px 12px;
+      padding-top: calc(10px + env(safe-area-inset-top));
+      border-bottom:1px solid var(--border);
+      background: var(--header-bg);
+      backdrop-filter: blur(10px);
     }
 
-    .brand{display:flex; align-items:center; gap:10px; flex-wrap:wrap;}
-    .dot{width:10px; height:10px; border-radius:999px; background:var(--accent); box-shadow:0 0 0 6px rgba(22,163,74,.15);}
-    .title{font-weight:800;}
-    .sub{color:var(--muted); font-size:12px;}
-    .actions{display:flex; align-items:center; gap:8px; flex-wrap:wrap;}
-    .spacer{flex:1;}
+    .brand{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      min-width: 0;
+    }
+    .dot{
+      width:10px; height:10px; border-radius:999px;
+      background:var(--accent);
+      box-shadow:0 0 0 6px rgba(22,163,74,.15);
+      flex:0 0 auto;
+    }
+    .brandText{min-width:0;}
+    .title{
+      font-weight:800;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      max-width: min(64vw, 520px);
+    }
+    .sub{
+      color:var(--muted);
+      font-size:12px;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      max-width: min(64vw, 520px);
+    }
+
+    .actionsWrap{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      flex: 0 0 auto;
+    }
+
+    /* Desktop toolbar */
+    .actions{
+      display:flex;
+      align-items:center;
+      gap:8px;
+      flex-wrap:wrap;
+      justify-content:flex-end;
+    }
 
     button{
       appearance:none;
       border:1px solid var(--border);
       background:rgba(15,23,42,.04);
       color:var(--text);
-      padding:7px 10px;
+      padding:9px 12px;
       border-radius:12px;
       cursor:pointer;
       font-weight:700;
       font-size:13px;
       line-height:1;
+      min-height:40px; /* touch-friendly */
+      min-width:40px;  /* touch-friendly */
     }
     button.primary{background:rgba(22,163,74,.14); border-color:rgba(22,163,74,.28);}
     button:disabled{opacity:.55; cursor:not-allowed;}
 
-    #viewer{position:relative; height:100%;}
-    canvas{display:block; width:100%; height:100%;}
-
-    .help{
-      position:absolute; left:14px; bottom:14px;
-      max-width:460px; padding:12px 12px;
+    .pill{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      padding:6px 10px;
+      border-radius:999px;
       border:1px solid var(--border);
-      background: rgba(255,255,255,.82);
-      backdrop-filter: blur(10px);
-      border-radius: var(--radius);
+      background:rgba(15,23,42,.03);
       color:var(--muted);
       font-size:12px;
-      box-shadow: 0 12px 30px rgba(0,0,0,.10);
+      min-height:40px;
     }
-    .help b{color:var(--text);}
+
+    input[type="file"]{display:none;}
+
+    .bgctl, .gridctl{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      padding:4px 10px;
+      border-radius:999px;
+      border:1px solid var(--border);
+      background:rgba(15,23,42,.03);
+      color:var(--muted);
+      font-size:12px;
+      min-height:40px;
+    }
+    .bgctl label{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      cursor:pointer;
+    }
+    .bgctl input[type="color"]{
+      width:30px; height:26px;
+      padding:0;
+      border:1px solid var(--border);
+      border-radius:8px;
+      background:transparent;
+      cursor:pointer;
+    }
+    .bgctl .preset, .gridctl .preset{
+      padding:7px 10px;
+      border-radius:999px;
+      border:1px solid var(--border);
+      background:rgba(255,255,255,.75);
+      color:var(--text);
+      font-weight:700;
+      font-size:12px;
+      cursor:pointer;
+      min-height:32px;
+    }
+    .bgctl .preset:hover, .gridctl .preset:hover{background:rgba(255,255,255,.95);}
+
+    /* Viewer */
+    #viewer{position:relative; height:100%;}
+    canvas{display:block; width:100%; height:100%; touch-action:none;}
 
     .toast{
       position:absolute; top:12px; left:50%; transform:translateX(-50%);
       min-width: min(720px, calc(100vw - 24px));
-      padding:10px 12px; border-radius: var(--radius);
+      padding:10px 12px;
+      border-radius: var(--radius);
       border:1px solid rgba(15,23,42,.12);
       background: rgba(185,28,28,.92);
       color:#fff;
@@ -99,64 +202,134 @@
     }
     .toast.show{display:block;}
 
-    .pill{
-      display:inline-flex; align-items:center; gap:8px;
-      padding:3px 10px;
-      border-radius:999px;
+    .help{
+      position:absolute;
+      left:14px; bottom:14px;
+      max-width:480px;
+      padding:12px 12px;
       border:1px solid var(--border);
-      background:rgba(15,23,42,.03);
+      background: rgba(255,255,255,.82);
+      backdrop-filter: blur(10px);
+      border-radius: var(--radius);
       color:var(--muted);
       font-size:12px;
+      box-shadow: var(--shadow);
+    }
+    .help b{color:var(--text);}
+    .helpRow{display:flex; align-items:flex-start; justify-content:space-between; gap:10px;}
+    .helpClose{
+      border:1px solid var(--border);
+      background:rgba(15,23,42,.04);
+      border-radius:10px;
+      padding:6px 10px;
+      min-height:32px;
+      min-width:32px;
+      font-weight:800;
     }
 
-    input[type="file"]{display:none;}
+    /* Mobile-only buttons */
+    .menuBtn{display:none;}
+    .miniBtn{display:none;}
 
-    .bgctl, .gridctl{
-      display:inline-flex;
-      align-items:center;
-      gap:8px;
-      padding:3px 10px;
-      border-radius:999px;
-      border:1px solid var(--border);
-      background:rgba(15,23,42,.03);
-      color:var(--muted);
-      font-size:12px;
+    /* Mobile collapsible toolbar */
+    #toolbarPanel{
+      display:none;
+      width:100%;
+      border-top:1px solid var(--border);
+      padding-top:10px;
     }
-    .bgctl label{display:inline-flex; align-items:center; gap:8px; cursor:pointer;}
-    .bgctl input[type="color"]{
-      width:26px; height:20px;
-      padding:0; border:1px solid var(--border);
-      border-radius:6px;
-      background:transparent;
-      cursor:pointer;
+
+    @media (max-width: 920px){
+      .title, .sub{max-width: min(60vw, 420px);}
     }
-    .bgctl .preset, .gridctl .preset{
-      padding:4px 8px;
-      border-radius:999px;
-      border:1px solid var(--border);
-      background:rgba(255,255,255,.75);
-      color:var(--text);
-      font-weight:700;
-      font-size:12px;
-      cursor:pointer;
+
+    @media (max-width: 720px){
+      header{
+        flex-direction:column;
+        align-items:stretch;
+        gap:10px;
+        padding-left:12px;
+        padding-right:12px;
+        padding-bottom:12px;
+      }
+
+      .brand{
+        width:100%;
+        justify-content:space-between;
+      }
+
+      .brandLeft{
+        display:flex;
+        align-items:center;
+        gap:10px;
+        min-width:0;
+      }
+
+      .title, .sub{max-width: 66vw;}
+
+      .actionsWrap{
+        width:100%;
+        justify-content:flex-end;
+      }
+
+      .menuBtn{display:inline-flex;}
+      .miniBtn{display:inline-flex;}
+
+      /* Hide desktop actions; use collapsible panel */
+      .actions{display:none;}
+      #toolbarPanel{display:block;}
+      #toolbarPanel[hidden]{display:none;}
+
+      .toolbarGrid{
+        display:flex;
+        flex-direction:column;
+        gap:10px;
+      }
+      .toolbarRow{
+        display:flex;
+        gap:8px;
+        flex-wrap:wrap;
+        align-items:center;
+      }
+      .pill{flex:1 1 auto; justify-content:center;}
+
+      .help{
+        left:10px; right:10px;
+        bottom:10px;
+        max-width:none;
+      }
     }
-    .bgctl .preset:hover, .gridctl .preset:hover{background:rgba(255,255,255,.95);}
+
+    @media (max-width: 420px){
+      .title{max-width: 62vw;}
+      .sub{display:none;}
+      .bgctl, .gridctl{width:100%; justify-content:space-between;}
+      .toolbarRow > label, .toolbarRow > button{flex: 1 1 auto;}
+      .bgctl .preset, .gridctl .preset{min-height:36px;}
+    }
   </style>
 </head>
 <body>
   <div id="app">
     <header>
       <div class="brand">
-        <span class="dot" aria-hidden="true"></span>
-        <div>
-          <div class="title">Heliroma — IFC 3D Viewer</div>
-          <div class="sub">Rotate / Zoom / Pan • Default model auto-load</div>
+        <div class="brandLeft">
+          <span class="dot" aria-hidden="true"></span>
+          <div class="brandText">
+            <div class="title">Heliroma — IFC 3D Viewer</div>
+            <div class="sub">Rotate / Zoom / Pan • Default model auto-load</div>
+          </div>
+        </div>
+
+        <div class="actionsWrap">
+          <span id="statusMini" class="pill miniBtn" title="Status">Starting…</span>
+          <button id="btnHelp" class="miniBtn" type="button" title="Show/Hide help">Help</button>
+          <button id="btnMenu" class="menuBtn" type="button" title="Show/Hide tools">Tools</button>
         </div>
       </div>
 
-      <div class="spacer"></div>
-
-      <div class="actions">
+      <!-- Desktop toolbar -->
+      <div class="actions" id="actionsDesktop">
         <span id="status" class="pill">Starting…</span>
 
         <span class="bgctl" title="Viewer background color">
@@ -182,17 +355,60 @@
         <button id="btnReset" type="button">Reset</button>
         <button id="btnClear" type="button">Clear</button>
       </div>
+
+      <!-- Mobile toolbar panel -->
+      <div id="toolbarPanel" hidden>
+        <div class="toolbarGrid">
+          <div class="toolbarRow">
+            <span id="statusMobile" class="pill" style="flex:1 1 auto;">Starting…</span>
+          </div>
+
+          <div class="toolbarRow">
+            <span class="bgctl" style="width:100%;" title="Viewer background color">
+              <label for="bgColorMobile">
+                Background
+                <input id="bgColorMobile" type="color" value="#ffffff" aria-label="Viewer background color" />
+              </label>
+              <button class="preset" id="bgWhiteMobile" type="button">White</button>
+              <button class="preset" id="bgDarkMobile" type="button">Dark</button>
+            </span>
+          </div>
+
+          <div class="toolbarRow">
+            <span class="gridctl" style="width:100%;" title="Grid options">
+              Grid
+              <button class="preset" id="gridToggleMobile" type="button">On</button>
+              <button class="preset" id="gridModeMobile" type="button">Finite</button>
+            </span>
+          </div>
+
+          <div class="toolbarRow">
+            <label style="flex:1 1 auto;">
+              <input id="fileInputMobile" type="file" accept=".ifc" />
+              <button id="btnLoadMobile" class="primary" type="button" style="width:100%;">Load IFC</button>
+            </label>
+            <button id="btnFitMobile" type="button" style="flex:1 1 auto;">Fit</button>
+            <button id="btnResetMobile" type="button" style="flex:1 1 auto;">Reset</button>
+            <button id="btnClearMobile" type="button" style="flex:1 1 auto;">Clear</button>
+          </div>
+        </div>
+      </div>
     </header>
 
     <div id="viewer">
       <div id="toast" class="toast"></div>
       <canvas id="canvas"></canvas>
 
-      <div class="help">
-        <b>Controls</b><br/>
-        • Drag = rotate • Scroll/pinch = zoom • Right-drag (or 2-finger) = pan<br/>
-        <span id="defaultInfo"></span><br/>
-        <span><b>Grid</b>: On/Off and Finite/Infinite.</span>
+      <div id="helpCard" class="help">
+        <div class="helpRow">
+          <div>
+            <b>Controls</b><br/>
+            • Drag = rotate • Scroll/pinch = zoom • Right-drag (or 2-finger) = pan<br/>
+            <span id="defaultInfo"></span><br/>
+            <span><b>Grid</b>: On/Off and Finite/Infinite.</span>
+          </div>
+          <button id="helpClose" class="helpClose" type="button" title="Hide help">×</button>
+        </div>
       </div>
     </div>
   </div>
@@ -213,22 +429,50 @@
     const GRID_VISIBLE_KEY = "heliroma_grid_visible";
     const GRID_MODE_KEY = "heliroma_grid_mode"; // "finite" | "infinite"
 
+    const TOOLS_OPEN_KEY = "heliroma_tools_open";
+    const HELP_VISIBLE_KEY = "heliroma_help_visible";
+
     const el = {
       canvas: document.getElementById("canvas"),
       viewer: document.getElementById("viewer"),
-      status: document.getElementById("status"),
       toast: document.getElementById("toast"),
+
+      // Desktop toolbar
+      status: document.getElementById("status"),
+      bgColor: document.getElementById("bgColor"),
+      bgWhite: document.getElementById("bgWhite"),
+      bgDark: document.getElementById("bgDark"),
+      gridToggle: document.getElementById("gridToggle"),
+      gridMode: document.getElementById("gridMode"),
       fileInput: document.getElementById("fileInput"),
       btnLoad: document.getElementById("btnLoad"),
       btnFit: document.getElementById("btnFit"),
       btnReset: document.getElementById("btnReset"),
       btnClear: document.getElementById("btnClear"),
-      defaultInfo: document.getElementById("defaultInfo"),
-      bgColor: document.getElementById("bgColor"),
-      bgWhite: document.getElementById("bgWhite"),
-      bgDark: document.getElementById("bgDark"),
-      gridToggle: document.getElementById("gridToggle"),
-      gridMode: document.getElementById("gridMode")
+
+      // Mobile header
+      statusMini: document.getElementById("statusMini"),
+      btnMenu: document.getElementById("btnMenu"),
+      btnHelp: document.getElementById("btnHelp"),
+      toolbarPanel: document.getElementById("toolbarPanel"),
+
+      // Mobile panel
+      statusMobile: document.getElementById("statusMobile"),
+      bgColorMobile: document.getElementById("bgColorMobile"),
+      bgWhiteMobile: document.getElementById("bgWhiteMobile"),
+      bgDarkMobile: document.getElementById("bgDarkMobile"),
+      gridToggleMobile: document.getElementById("gridToggleMobile"),
+      gridModeMobile: document.getElementById("gridModeMobile"),
+      fileInputMobile: document.getElementById("fileInputMobile"),
+      btnLoadMobile: document.getElementById("btnLoadMobile"),
+      btnFitMobile: document.getElementById("btnFitMobile"),
+      btnResetMobile: document.getElementById("btnResetMobile"),
+      btnClearMobile: document.getElementById("btnClearMobile"),
+
+      // Help
+      helpCard: document.getElementById("helpCard"),
+      helpClose: document.getElementById("helpClose"),
+      defaultInfo: document.getElementById("defaultInfo")
     };
 
     let scene, camera, renderer, controls;
@@ -241,13 +485,6 @@
     let gridVisible = true;
     let gridMode = "finite";
 
-    function setStatus(text, ok=true){
-      el.status.textContent = text;
-      el.status.style.borderColor = ok ? "rgba(22,163,74,.35)" : "rgba(15,23,42,.12)";
-      el.status.style.color = ok ? "#166534" : "#991b1b";
-      el.status.style.background = ok ? "rgba(22,163,74,.10)" : "rgba(185,28,28,.10)";
-    }
-
     function showError(message, err){
       console.error(message, err);
       el.toast.textContent = message + (err ? ` (${err?.message || err})` : "");
@@ -257,6 +494,34 @@
 
     function clearError(){
       el.toast.classList.remove("show");
+    }
+
+    function setStatus(text, ok=true){
+      const apply = (node) => {
+        if (!node) return;
+        node.textContent = text;
+        node.style.borderColor = ok ? "rgba(22,163,74,.35)" : "rgba(15,23,42,.12)";
+        node.style.color = ok ? "#166534" : "#991b1b";
+        node.style.background = ok ? "rgba(22,163,74,.10)" : "rgba(185,28,28,.10)";
+      };
+      apply(el.status);
+      apply(el.statusMini);
+      apply(el.statusMobile);
+    }
+
+    function setToolsOpen(open){
+      const isOpen = !!open;
+      el.toolbarPanel.hidden = !isOpen;
+      if (el.btnMenu) el.btnMenu.textContent = isOpen ? "Close" : "Tools";
+      try{ localStorage.setItem(TOOLS_OPEN_KEY, isOpen ? "1" : "0"); }catch(_){}
+      requestAnimationFrame(() => resize());
+    }
+
+    function setHelpVisible(visible){
+      const v = !!visible;
+      el.helpCard.style.display = v ? "block" : "none";
+      if (el.btnHelp) el.btnHelp.textContent = v ? "Hide" : "Help";
+      try{ localStorage.setItem(HELP_VISIBLE_KEY, v ? "1" : "0"); }catch(_){}
     }
 
     function applyFallbackGreenToUnstyledMeshes(model){
@@ -293,12 +558,12 @@
     function applyViewerBackground(hex){
       const safeHex = (typeof hex === "string" && /^#([0-9a-fA-F]{6})$/.test(hex)) ? hex : DEFAULT_BG_HEX;
       if (scene) scene.background = new THREE.Color(safeHex);
-      el.bgColor.value = safeHex;
+      if (el.bgColor) el.bgColor.value = safeHex;
+      if (el.bgColorMobile) el.bgColorMobile.value = safeHex;
       try{ localStorage.setItem(BG_STORAGE_KEY, safeHex); }catch(_){}
     }
 
     function createFiniteGrid(){
-      // Ajuste aqui se quiser maior (continua finito)
       const size = 60;
       const divisions = 60;
       const grid = new THREE.GridHelper(size, divisions, 0x94a3b8, 0xcbd5e1);
@@ -309,7 +574,6 @@
     }
 
     function createInfiniteGrid(){
-      // Plano 2x2; o shader desenha o grid em função de coordenadas do mundo
       const geom = new THREE.PlaneGeometry(2, 2, 1, 1);
       geom.rotateX(-Math.PI / 2);
 
@@ -370,7 +634,6 @@
       const mesh = new THREE.Mesh(geom, material);
       mesh.frustumCulled = false;
       mesh.renderOrder = -2;
-      mesh.name = "InfiniteGrid";
       return mesh;
     }
 
@@ -378,13 +641,17 @@
       gridVisible = !!visible;
       if (finiteGrid) finiteGrid.visible = gridVisible && (gridMode === "finite");
       if (infiniteGrid) infiniteGrid.visible = gridVisible && (gridMode === "infinite");
-      el.gridToggle.textContent = gridVisible ? "On" : "Off";
+      const label = gridVisible ? "On" : "Off";
+      if (el.gridToggle) el.gridToggle.textContent = label;
+      if (el.gridToggleMobile) el.gridToggleMobile.textContent = label;
       try{ localStorage.setItem(GRID_VISIBLE_KEY, gridVisible ? "1" : "0"); }catch(_){}
     }
 
     function setGridMode(mode){
       gridMode = (mode === "infinite") ? "infinite" : "finite";
-      el.gridMode.textContent = (gridMode === "infinite") ? "Infinite" : "Finite";
+      const label = (gridMode === "infinite") ? "Infinite" : "Finite";
+      if (el.gridMode) el.gridMode.textContent = label;
+      if (el.gridModeMobile) el.gridModeMobile.textContent = label;
       if (finiteGrid) finiteGrid.visible = gridVisible && (gridMode === "finite");
       if (infiniteGrid) infiniteGrid.visible = gridVisible && (gridMode === "infinite");
       try{ localStorage.setItem(GRID_MODE_KEY, gridMode); }catch(_){}
@@ -397,7 +664,6 @@
       try{ storedBg = localStorage.getItem(BG_STORAGE_KEY); }catch(_){}
       const initialBg = (storedBg && /^#([0-9a-fA-F]{6})$/.test(storedBg)) ? storedBg : DEFAULT_BG_HEX;
       scene.background = new THREE.Color(initialBg);
-      el.bgColor.value = initialBg;
 
       camera = new THREE.PerspectiveCamera(60, 1, 0.1, 2000);
       camera.position.set(6, 4, 8);
@@ -410,19 +676,16 @@
       controls.dampingFactor = 0.06;
       controls.target.set(0, 1, 0);
 
-      const hemi = new THREE.HemisphereLight(0xffffff, 0x223344, 0.9);
-      scene.add(hemi);
+      scene.add(new THREE.HemisphereLight(0xffffff, 0x223344, 0.9));
       const dir = new THREE.DirectionalLight(0xffffff, 0.9);
       dir.position.set(6, 10, 4);
       scene.add(dir);
 
-      // Grids
       finiteGrid = createFiniteGrid();
       infiniteGrid = createInfiniteGrid();
       scene.add(finiteGrid);
       scene.add(infiniteGrid);
 
-      // Load grid state
       let storedVisible = null;
       let storedMode = null;
       try{
@@ -435,26 +698,54 @@
       ifcLoader = new IFCLoader();
       ifcLoader.ifcManager.setWasmPath(WEB_IFC_WASM_PATH);
 
+      // Desktop events
       el.btnLoad.addEventListener("click", () => el.fileInput.click());
       el.fileInput.addEventListener("change", onPickFile);
       el.btnFit.addEventListener("click", () => { if (currentModel) fitToObject(currentModel); });
       el.btnReset.addEventListener("click", resetCamera);
       el.btnClear.addEventListener("click", clearModel);
-
       el.bgColor.addEventListener("input", (e) => applyViewerBackground(e.target.value));
       el.bgWhite.addEventListener("click", () => applyViewerBackground(DEFAULT_BG_HEX));
       el.bgDark.addEventListener("click", () => applyViewerBackground(DARK_BG_HEX));
-
       el.gridToggle.addEventListener("click", () => setGridVisible(!gridVisible));
       el.gridMode.addEventListener("click", () => setGridMode(gridMode === "finite" ? "infinite" : "finite"));
 
-      window.addEventListener("resize", resize, { passive:true });
-      resize();
+      // Mobile events
+      el.btnLoadMobile.addEventListener("click", () => el.fileInputMobile.click());
+      el.fileInputMobile.addEventListener("change", onPickFile);
+      el.btnFitMobile.addEventListener("click", () => { if (currentModel) fitToObject(currentModel); });
+      el.btnResetMobile.addEventListener("click", resetCamera);
+      el.btnClearMobile.addEventListener("click", clearModel);
+      el.bgColorMobile.addEventListener("input", (e) => applyViewerBackground(e.target.value));
+      el.bgWhiteMobile.addEventListener("click", () => applyViewerBackground(DEFAULT_BG_HEX));
+      el.bgDarkMobile.addEventListener("click", () => applyViewerBackground(DARK_BG_HEX));
+      el.gridToggleMobile.addEventListener("click", () => setGridVisible(!gridVisible));
+      el.gridModeMobile.addEventListener("click", () => setGridMode(gridMode === "finite" ? "infinite" : "finite"));
 
+      // Mobile header buttons
+      el.btnMenu.addEventListener("click", () => setToolsOpen(el.toolbarPanel.hidden));
+      el.btnHelp.addEventListener("click", () => setHelpVisible(el.helpCard.style.display === "none"));
+      el.helpClose.addEventListener("click", () => setHelpVisible(false));
+
+      // restore UI prefs
+      let toolsOpen = null, helpVisible = null;
+      try{
+        toolsOpen = localStorage.getItem(TOOLS_OPEN_KEY);
+        helpVisible = localStorage.getItem(HELP_VISIBLE_KEY);
+      }catch(_){}
+      setToolsOpen(toolsOpen === "1");
+      setHelpVisible(helpVisible === "0" ? false : true);
+
+      applyViewerBackground(initialBg);
+
+      window.addEventListener("resize", resize, { passive:true });
+      window.addEventListener("orientationchange", () => setTimeout(resize, 250), { passive:true });
+      resize();
       renderer.setAnimationLoop(tick);
 
       el.defaultInfo.textContent = `Default model: ${DEFAULT_IFC_URL.replace("./","")}`;
       autoLoadDefault();
+
       setStatus("Ready");
     }
 
@@ -467,7 +758,6 @@
     }
 
     function tick(){
-      // Mantém o grid infinito “centrado” no target -> sensação de infinito
       if (infiniteGrid){
         infiniteGrid.position.x = controls.target.x;
         infiniteGrid.position.z = controls.target.z;
@@ -569,7 +859,7 @@
       }catch(err){
         showError("Unexpected error while opening local IFC", err);
       } finally {
-        e.target.value = "";
+        if (e.target) e.target.value = "";
       }
     }
 
