@@ -4,11 +4,9 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <meta name="google" content="notranslate" />
-  <!-- Prevent the browser from requesting /favicon.ico (404 noise in console) -->
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22%3E%3Ctext y=%22.9em%22 font-size=%2290%22%3E%F0%9F%A7%8A%3C/text%3E%3C/svg%3E">
   <title>Heliroma — IFC 3D Viewer</title>
 
-  <!-- Import maps: make "three" and "web-ifc" resolvable in the browser -->
   <script type="importmap">
   {
     "imports": {
@@ -24,7 +22,6 @@
   </script>
 
   <style>
-    /* Page theme LIGHT by default; viewer background is controlled independently */
     :root{
       --page-bg:#ffffff;
       --text:#0f172a;
@@ -77,7 +74,7 @@
 
     .help{
       position:absolute; left:14px; bottom:14px;
-      max-width:420px; padding:12px 12px;
+      max-width:460px; padding:12px 12px;
       border:1px solid var(--border);
       background: rgba(255,255,255,.82);
       backdrop-filter: blur(10px);
@@ -114,8 +111,7 @@
 
     input[type="file"]{display:none;}
 
-    /* Basic viewer background control */
-    .bgctl{
+    .bgctl, .gridctl{
       display:inline-flex;
       align-items:center;
       gap:8px;
@@ -134,7 +130,7 @@
       background:transparent;
       cursor:pointer;
     }
-    .bgctl .preset{
+    .bgctl .preset, .gridctl .preset{
       padding:4px 8px;
       border-radius:999px;
       border:1px solid var(--border);
@@ -144,7 +140,7 @@
       font-size:12px;
       cursor:pointer;
     }
-    .bgctl .preset:hover{background:rgba(255,255,255,.95);}
+    .bgctl .preset:hover, .gridctl .preset:hover{background:rgba(255,255,255,.95);}
   </style>
 </head>
 <body>
@@ -168,17 +164,23 @@
             Background
             <input id="bgColor" type="color" value="#ffffff" aria-label="Viewer background color" />
           </label>
-          <button class="preset" id="bgWhite" type="button" title="White">White</button>
-          <button class="preset" id="bgDark" type="button" title="Dark">Dark</button>
+          <button class="preset" id="bgWhite" type="button">White</button>
+          <button class="preset" id="bgDark" type="button">Dark</button>
+        </span>
+
+        <span class="gridctl" title="Grid options">
+          Grid
+          <button class="preset" id="gridToggle" type="button">On</button>
+          <button class="preset" id="gridMode" type="button">Finite</button>
         </span>
 
         <label>
           <input id="fileInput" type="file" accept=".ifc" />
           <button id="btnLoad" class="primary" type="button">Load IFC</button>
         </label>
-        <button id="btnFit" type="button" title="Fit model to view">Fit</button>
-        <button id="btnReset" type="button" title="Reset camera">Reset</button>
-        <button id="btnClear" type="button" title="Remove current model">Clear</button>
+        <button id="btnFit" type="button">Fit</button>
+        <button id="btnReset" type="button">Reset</button>
+        <button id="btnClear" type="button">Clear</button>
       </div>
     </header>
 
@@ -189,7 +191,8 @@
       <div class="help">
         <b>Controls</b><br/>
         • Drag = rotate • Scroll/pinch = zoom • Right-drag (or 2-finger) = pan<br/>
-        <span id="defaultInfo"></span>
+        <span id="defaultInfo"></span><br/>
+        <span><b>Grid</b>: On/Off and Finite/Infinite.</span>
       </div>
     </div>
   </div>
@@ -199,15 +202,16 @@
     import { OrbitControls } from "three/addons/controls/OrbitControls.js";
     import { IFCLoader } from "https://cdn.jsdelivr.net/npm/web-ifc-three@0.0.126/IFCLoader.js";
 
-    // ---- Config ----
     const DEFAULT_IFC_URL = "./Projeto_Objeto3D_Chat.ifc";
     const WEB_IFC_WASM_PATH = "https://cdn.jsdelivr.net/npm/web-ifc@0.0.72/";
     const FALLBACK_GREEN_HEX = 0x70ad85;
 
-    // Background persistence
     const BG_STORAGE_KEY = "heliroma_viewer_bg";
     const DEFAULT_BG_HEX = "#ffffff";
     const DARK_BG_HEX = "#0b1220";
+
+    const GRID_VISIBLE_KEY = "heliroma_grid_visible";
+    const GRID_MODE_KEY = "heliroma_grid_mode"; // "finite" | "infinite"
 
     const el = {
       canvas: document.getElementById("canvas"),
@@ -222,13 +226,20 @@
       defaultInfo: document.getElementById("defaultInfo"),
       bgColor: document.getElementById("bgColor"),
       bgWhite: document.getElementById("bgWhite"),
-      bgDark: document.getElementById("bgDark")
+      bgDark: document.getElementById("bgDark"),
+      gridToggle: document.getElementById("gridToggle"),
+      gridMode: document.getElementById("gridMode")
     };
 
     let scene, camera, renderer, controls;
     let ifcLoader;
     let currentModel = null;
     let currentURL = null;
+
+    let finiteGrid = null;
+    let infiniteGrid = null;
+    let gridVisible = true;
+    let gridMode = "finite";
 
     function setStatus(text, ok=true){
       el.status.textContent = text;
@@ -269,8 +280,8 @@
         for (const m of mats){
           if (isDefaultWhite(m)){
             m.color.copy(fallback);
-            if (typeof m.roughness === 'number') m.roughness = 0.65;
-            if (typeof m.metalness === 'number') m.metalness = 0.05;
+            if (typeof m.roughness === "number") m.roughness = 0.65;
+            if (typeof m.metalness === "number") m.metalness = 0.05;
             m.needsUpdate = true;
             changed = true;
           }
@@ -286,13 +297,105 @@
       try{ localStorage.setItem(BG_STORAGE_KEY, safeHex); }catch(_){}
     }
 
+    function createFiniteGrid(){
+      // Ajuste aqui se quiser maior (continua finito)
+      const size = 60;
+      const divisions = 60;
+      const grid = new THREE.GridHelper(size, divisions, 0x94a3b8, 0xcbd5e1);
+      grid.material.opacity = 0.35;
+      grid.material.transparent = true;
+      grid.renderOrder = -1;
+      return grid;
+    }
+
+    function createInfiniteGrid(){
+      // Plano 2x2; o shader desenha o grid em função de coordenadas do mundo
+      const geom = new THREE.PlaneGeometry(2, 2, 1, 1);
+      geom.rotateX(-Math.PI / 2);
+
+      const material = new THREE.ShaderMaterial({
+        transparent: true,
+        depthWrite: false,
+        uniforms: {
+          uMajorStep: { value: 1.0 },
+          uMinorStep: { value: 0.2 },
+          uMajorAlpha: { value: 0.28 },
+          uMinorAlpha: { value: 0.12 },
+          uFadeDistance: { value: 80.0 },
+          uMajorColor: { value: new THREE.Color(0x94a3b8) },
+          uMinorColor: { value: new THREE.Color(0xcbd5e1) }
+        },
+        vertexShader: `
+          varying vec3 vWorldPos;
+          void main(){
+            vec4 worldPos = modelMatrix * vec4(position, 1.0);
+            vWorldPos = worldPos.xyz;
+            gl_Position = projectionMatrix * viewMatrix * worldPos;
+          }
+        `,
+        fragmentShader: `
+          precision highp float;
+          varying vec3 vWorldPos;
+          uniform float uMajorStep;
+          uniform float uMinorStep;
+          uniform float uMajorAlpha;
+          uniform float uMinorAlpha;
+          uniform float uFadeDistance;
+          uniform vec3 uMajorColor;
+          uniform vec3 uMinorColor;
+
+          float gridLine(float stepSize, float width){
+            vec2 coord = vWorldPos.xz / stepSize;
+            vec2 grid = abs(fract(coord - 0.5) - 0.5) / fwidth(coord);
+            float line = min(grid.x, grid.y);
+            return 1.0 - clamp(line - width, 0.0, 1.0);
+          }
+
+          void main(){
+            float dist = length(vWorldPos.xz);
+            float fade = 1.0 - smoothstep(uFadeDistance * 0.35, uFadeDistance, dist);
+
+            float minor = gridLine(uMinorStep, 0.5) * uMinorAlpha;
+            float major = gridLine(uMajorStep, 0.7) * uMajorAlpha;
+
+            vec3 col = uMinorColor * minor + uMajorColor * major;
+            float alpha = clamp(minor + major, 0.0, 1.0) * fade;
+
+            if(alpha < 0.01) discard;
+            gl_FragColor = vec4(col, alpha);
+          }
+        `
+      });
+
+      const mesh = new THREE.Mesh(geom, material);
+      mesh.frustumCulled = false;
+      mesh.renderOrder = -2;
+      mesh.name = "InfiniteGrid";
+      return mesh;
+    }
+
+    function setGridVisible(visible){
+      gridVisible = !!visible;
+      if (finiteGrid) finiteGrid.visible = gridVisible && (gridMode === "finite");
+      if (infiniteGrid) infiniteGrid.visible = gridVisible && (gridMode === "infinite");
+      el.gridToggle.textContent = gridVisible ? "On" : "Off";
+      try{ localStorage.setItem(GRID_VISIBLE_KEY, gridVisible ? "1" : "0"); }catch(_){}
+    }
+
+    function setGridMode(mode){
+      gridMode = (mode === "infinite") ? "infinite" : "finite";
+      el.gridMode.textContent = (gridMode === "infinite") ? "Infinite" : "Finite";
+      if (finiteGrid) finiteGrid.visible = gridVisible && (gridMode === "finite");
+      if (infiniteGrid) infiniteGrid.visible = gridVisible && (gridMode === "infinite");
+      try{ localStorage.setItem(GRID_MODE_KEY, gridMode); }catch(_){}
+    }
+
     function init(){
       scene = new THREE.Scene();
 
-      // Default = white, but allow saved preference
-      let stored = null;
-      try{ stored = localStorage.getItem(BG_STORAGE_KEY); }catch(_){}
-      const initialBg = (stored && /^#([0-9a-fA-F]{6})$/.test(stored)) ? stored : DEFAULT_BG_HEX;
+      let storedBg = null;
+      try{ storedBg = localStorage.getItem(BG_STORAGE_KEY); }catch(_){}
+      const initialBg = (storedBg && /^#([0-9a-fA-F]{6})$/.test(storedBg)) ? storedBg : DEFAULT_BG_HEX;
       scene.background = new THREE.Color(initialBg);
       el.bgColor.value = initialBg;
 
@@ -309,16 +412,25 @@
 
       const hemi = new THREE.HemisphereLight(0xffffff, 0x223344, 0.9);
       scene.add(hemi);
-
       const dir = new THREE.DirectionalLight(0xffffff, 0.9);
       dir.position.set(6, 10, 4);
       scene.add(dir);
 
-      // Grid subtle (para fundo branco)
-      const grid = new THREE.GridHelper(40, 40, 0x94a3b8, 0xcbd5e1);
-      grid.material.opacity = 0.35;
-      grid.material.transparent = true;
-      scene.add(grid);
+      // Grids
+      finiteGrid = createFiniteGrid();
+      infiniteGrid = createInfiniteGrid();
+      scene.add(finiteGrid);
+      scene.add(infiniteGrid);
+
+      // Load grid state
+      let storedVisible = null;
+      let storedMode = null;
+      try{
+        storedVisible = localStorage.getItem(GRID_VISIBLE_KEY);
+        storedMode = localStorage.getItem(GRID_MODE_KEY);
+      }catch(_){}
+      setGridMode(storedMode === "infinite" ? "infinite" : "finite");
+      setGridVisible(storedVisible === "0" ? false : true);
 
       ifcLoader = new IFCLoader();
       ifcLoader.ifcManager.setWasmPath(WEB_IFC_WASM_PATH);
@@ -329,10 +441,12 @@
       el.btnReset.addEventListener("click", resetCamera);
       el.btnClear.addEventListener("click", clearModel);
 
-      // Background controls
       el.bgColor.addEventListener("input", (e) => applyViewerBackground(e.target.value));
       el.bgWhite.addEventListener("click", () => applyViewerBackground(DEFAULT_BG_HEX));
       el.bgDark.addEventListener("click", () => applyViewerBackground(DARK_BG_HEX));
+
+      el.gridToggle.addEventListener("click", () => setGridVisible(!gridVisible));
+      el.gridMode.addEventListener("click", () => setGridMode(gridMode === "finite" ? "infinite" : "finite"));
 
       window.addEventListener("resize", resize, { passive:true });
       resize();
@@ -353,6 +467,11 @@
     }
 
     function tick(){
+      // Mantém o grid infinito “centrado” no target -> sensação de infinito
+      if (infiniteGrid){
+        infiniteGrid.position.x = controls.target.x;
+        infiniteGrid.position.z = controls.target.z;
+      }
       controls.update();
       renderer.render(scene, camera);
     }
